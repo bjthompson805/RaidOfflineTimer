@@ -1,4 +1,4 @@
-## Interface: 11404
+## Interface: 11508
 ## Title: RaidOfflineTimer
 ## Notes: Tracks how long raid members have been offline
 ## SavedVariables: RaidOfflineTimerDB

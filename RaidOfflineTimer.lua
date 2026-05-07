@@ -3,6 +3,7 @@
 
 local RaidOfflineTimer = {}
 local offlineTimers    = {}   -- [playerName] = timestamp | 0 (pending)
+local playerLocation   = {}   -- [playerName] = location | null
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
@@ -10,6 +11,7 @@ frame:RegisterEvent("VARIABLES_LOADED")
 frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 frame:RegisterEvent("UNIT_CONNECTION")
 frame:RegisterEvent("CHAT_MSG_ADDON")
+frame:RegisterEvent("GROUP_JOINED")
 
 frame:SetScript("OnEvent", function(_, event, ...)
     if RaidOfflineTimer[event] then RaidOfflineTimer[event](RaidOfflineTimer, ...) end
@@ -33,8 +35,8 @@ local settingsFrame            -- forward‑declare for slash cmd reuse
 function RaidOfflineTimer:PLAYER_LOGIN()
     if not RaidOfflineTimerDB then
         RaidOfflineTimerDB = {
-            enablePrint = true,
-            showPanel   = true,
+            enablePrint = false,
+            showPanel   = false,
             panelWidth  = 250,
             panelHeight = 200,
         }
@@ -124,7 +126,14 @@ function RaidOfflineTimer:PLAYER_LOGIN()
 
         local lines = {}
         for name, ts in pairs(offlineTimers) do
-            if ts > 0 then lines[#lines+1] = string.format("%s: %s", name, fmtClock(now()-ts)) end
+            if ts > 0 then
+                local lastKnownLocation = playerLocation[name]
+                if not lastKnownLocation then
+                    lastKnownLocation = "Unknown"
+                end
+
+                lines[#lines+1] = string.format("%s: %s (%s)", name, fmtClock(now()-ts), lastKnownLocation)
+            end
         end
         table.sort(lines)
         panel.content:SetText(next(lines) and table.concat(lines, "\n") or "No one offline.")
@@ -226,6 +235,8 @@ function RaidOfflineTimer:PLAYER_LOGIN()
 
         -- Run a local scan right away so you pick up anyone already offline
         RaidOfflineTimer:GROUP_ROSTER_UPDATE()
+
+        RaidOfflineTimer:GROUP_JOINED()
     end)
 end
 
@@ -271,6 +282,29 @@ function RaidOfflineTimer:GROUP_ROSTER_UPDATE()
     for name in pairs(offlineTimers) do if not current[name] then offlineTimers[name]=nil end end
 end
 function RaidOfflineTimer:UNIT_CONNECTION() self:GROUP_ROSTER_UPDATE() end
+
+function RaidOfflineTimer:GROUP_JOINED()
+    RaidOfflineTimer:UpdatePlayerLocations()
+end
+
+function RaidOfflineTimer:UpdatePlayerLocations()
+    for i=1, GetNumGroupMembers() do
+        local unit = "raid"..i
+        local name = GetUnitName(unit, true)
+        if name then
+            local online = UnitIsConnected(unit)
+            if online then
+                local _, _, _, _, _, _, zone = GetRaidRosterInfo(i)
+                local mapID = C_Map.GetBestMapForUnit(unit)
+                local mapInfo = C_Map.GetMapInfo(mapID)
+                local mapName = mapInfo.name
+                playerLocation[name] = zone .. " (" .. mapName .. ")"
+            end
+        end
+    end
+
+    C_Timer.After(5, function() RaidOfflineTimer:UpdatePlayerLocations() end)
+end
 
 ---------------------------------------------------------------------
 -- SYNC -------------------------------------------------------------
@@ -320,7 +354,13 @@ function RaidOfflineTimer:VARIABLES_LOADED() print("RaidOfflineTimer vars loaded
 GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
     local name = select(1, tip:GetUnit())
     if name and offlineTimers[name] and offlineTimers[name]>0 then
+        local lastKnownLocation = playerLocation[name]
+        if not lastKnownLocation then
+            lastKnownLocation = "Unknown"
+        end
+
         tip:AddLine("Offline for: "..fmtClock(now()-offlineTimers[name]), 1,0,0)
+        tip:AddLine("Last known location: "..lastKnownLocation, 1,0,0)
         tip:Show()
     end
 end)
