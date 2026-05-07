@@ -1,0 +1,5 @@
+## Interface: 11404
+## Title: RaidOfflineTimer
+## Notes: Tracks how long raid members have been offline
+## SavedVariables: RaidOfflineTimerDB
+RaidOfflineTimer.lua
