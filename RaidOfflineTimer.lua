@@ -295,10 +295,16 @@ function RaidOfflineTimer:UpdatePlayerLocations()
             local online = UnitIsConnected(unit)
             if online then
                 local _, _, _, _, _, _, zone = GetRaidRosterInfo(i)
+                local locationString = zone
                 local mapID = C_Map.GetBestMapForUnit(unit)
-                local mapInfo = C_Map.GetMapInfo(mapID)
-                local mapName = mapInfo.name
-                playerLocation[name] = zone .. " (" .. mapName .. ")"
+                if mapID then
+                    local mapInfo = C_Map.GetMapInfo(mapID)
+                    local mapName = mapInfo.name
+                    if mapName ~= zone then
+                        locationString = locationString .. " (" .. mapName .. ")"
+                    end
+                end
+                playerLocation[name] = locationString
             end
         end
     end
@@ -352,14 +358,22 @@ end
 function RaidOfflineTimer:VARIABLES_LOADED() print("RaidOfflineTimer vars loaded") end
 
 GameTooltip:HookScript("OnTooltipSetUnit", function(tip)
-    local name = select(1, tip:GetUnit())
-    if name and offlineTimers[name] and offlineTimers[name]>0 then
+    local name, unit = select(1, tip:GetUnit())
+    local _, realm = UnitName(unit)
+    local unitOfflineTimer = offlineTimers[name]
+    if not unitOfflineTimer and realm then
+        unitOfflineTimer = offlineTimers[name .. "-" .. realm]
+    end
+    if (unitOfflineTimer and unitOfflineTimer>0) then
         local lastKnownLocation = playerLocation[name]
+        if not lastKnownLocation and realm then
+            lastKnownLocation = playerLocation[name .. "-" .. realm]
+        end
         if not lastKnownLocation then
             lastKnownLocation = "Unknown"
         end
 
-        tip:AddLine("Offline for: "..fmtClock(now()-offlineTimers[name]), 1,0,0)
+        tip:AddLine("Offline for: "..fmtClock(now()-unitOfflineTimer), 1,0,0)
         tip:AddLine("Last known location: "..lastKnownLocation, 1,0,0)
         tip:Show()
     end
