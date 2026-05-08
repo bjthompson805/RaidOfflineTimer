@@ -1,3 +1,7 @@
+# Raid Offline Timer
+This is a WoW addon for adding the time a raid member has been offline to the tooltip. It was originally developed by Bubzwarr, and has been modified by bjthompson805 to also include the raid member's last known location.
+
+# Original Readme
 Raid Offline Timer
 -by Bubzwarr
 
